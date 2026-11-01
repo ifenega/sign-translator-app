@@ -1,0 +1,28 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# ML data and outputs (too large for git)
+ml/data/*
+!ml/data/.gitkeep
+*.pt
+*.pth
+*.onnx
+*.task
+*.parquet
+*.npy
+*.zip
+
+# Node / React Native
+node_modules/
+.expo/
+
+# OS / editor
+.DS_Store
+.env
+.env.*
+
+# Credentials
+kaggle.json

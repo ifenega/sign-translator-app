@@ -1,0 +1,4 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/ml/.venv/bin/python",
+  "jupyter.notebookFileRoot": "${workspaceFolder}/ml"
+}

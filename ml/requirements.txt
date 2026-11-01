@@ -1,0 +1,10 @@
+numpy
+pandas
+pyarrow
+matplotlib
+torch
+mediapipe
+opencv-contrib-python
+jupyter
+ipykernel
+kaggle

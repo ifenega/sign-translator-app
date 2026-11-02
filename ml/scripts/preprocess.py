@@ -14,7 +14,8 @@ for each clip:
 6. resamples or pads the clip to 64 frames.
 
 Clips are split by participant, so val and test only contain people the model never
-saw in training. Saved to data/prepared/, for each split (train, val, test):
+saw in training. Val and test each hold 2 right-handed and 1 left-handed signer, like
+the data as a whole. Saved to data/prepared/, for each split (train, val, test):
 
     {split}_x.npy      (clips, 64, 74, 2)  float32 x, y of each landmark
     {split}_mask.npy   (clips, 64, 74)     True where a landmark was missing or padded
@@ -43,9 +44,12 @@ IN_DIR = DATA_DIR / "processed"
 OUT_DIR = DATA_DIR / "prepared"
 
 NUM_FRAMES = 64
-TEST_PARTICIPANTS = 3
-VAL_PARTICIPANTS = 3
-SEED = 0  # fixes which participants land in val and test
+
+# The people held out from training. Test was first drawn at random and is kept as it
+# was. Val was redrawn by hand: the first random draw gave 3 left-handed signers, so val
+# only measured the hardest case. Everyone else is in train.
+TEST_PARTICIPANTS = [30680, 49445, 55372]  # right, right, left-handed
+VAL_PARTICIPANTS = [2044, 37779, 32319]  # right, right, left-handed
 
 # Positions in landmarks.npy (see extract_landmarks.py). The first 20 lip points
 # are the outer lip outline; the other 20 (inner lips) are dropped.
@@ -119,13 +123,9 @@ def to_fixed_length(xy, missing):
 
 def assign_splits(clips):
     """Put each participant's clips in train, val or test."""
-    participants = np.random.default_rng(SEED).permutation(sorted(clips["participant_id"].unique()))
-    test = participants[:TEST_PARTICIPANTS]
-    val = participants[TEST_PARTICIPANTS:TEST_PARTICIPANTS + VAL_PARTICIPANTS]
-
     split = pd.Series("train", index=clips.index)
-    split[clips["participant_id"].isin(val)] = "val"
-    split[clips["participant_id"].isin(test)] = "test"
+    split[clips["participant_id"].isin(VAL_PARTICIPANTS)] = "val"
+    split[clips["participant_id"].isin(TEST_PARTICIPANTS)] = "test"
     return split
 
 

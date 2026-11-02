@@ -1,6 +1,5 @@
 """Sequence model: a GRU reads the clip frame by frame, so unlike the baseline it sees
-the order of the movement. Trained with augmentation (random rotation, scaling and
-dropped frames; see training.py).
+the order of the movement. Trained with augmentation (see training.py).
 
 Usage, from ml/:
     .venv/bin/python scripts/train_gru.py

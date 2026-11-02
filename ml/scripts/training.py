@@ -28,6 +28,8 @@ NUM_LANDMARKS = 74
 # Augmentation: how far each training clip may be randomly changed.
 MAX_ROTATION = math.radians(15)
 MAX_SCALE_CHANGE = 0.2  # scaled by 0.8 to 1.2
+MAX_SHIFT = 0.1  # moved by up to a tenth of a shoulder width
+MAX_SPEED_CHANGE = 0.2  # played 0.8 to 1.2 times as fast
 DROP_FRAME_CHANCE = 0.1
 
 
@@ -54,16 +56,38 @@ def batches(x, mask, y, batch_size, shuffle=False):
         yield x[chosen], mask[chosen], y[chosen]
 
 
+def change_speed(x, mask):
+    """Play each clip a little faster or slower, by copying its frames at a different rate.
+
+    A clip is never slowed down so much that its end no longer fits in the 64 frames.
+    """
+    num_clips = len(x)
+    frame_number = torch.arange(NUM_FRAMES, device=x.device)
+    real_frame = ~mask.all(dim=2)  # (clips, frames); padding frames are all missing
+    length = (real_frame * (frame_number + 1)).amax(dim=1)  # up to and including the last real frame
+    speed = 1 + (torch.rand(num_clips, device=x.device) * 2 - 1) * MAX_SPEED_CHANGE
+    speed = torch.maximum(speed, length / NUM_FRAMES)
+
+    # Frame t of the new clip is a copy of frame t * speed of the original.
+    source = (frame_number * speed.unsqueeze(1)).long()  # (clips, frames)
+    past_end = source >= NUM_FRAMES
+    source = source.clamp(max=NUM_FRAMES - 1)
+    clip_number = torch.arange(num_clips, device=x.device).unsqueeze(1)
+    return x[clip_number, source], mask[clip_number, source] | past_end.unsqueeze(-1)
+
+
 def augment(x, mask):
-    """Randomly rotate, scale and drop frames, by a different amount for each clip."""
+    """Randomly change the speed, rotate, scale, shift and drop frames, by a different amount for each clip."""
+    x, mask = change_speed(x, mask)
     num_clips = len(x)
     angle = (torch.rand(num_clips, 1, 1, device=x.device) * 2 - 1) * MAX_ROTATION
     scale = 1 + (torch.rand(num_clips, 1, 1, device=x.device) * 2 - 1) * MAX_SCALE_CHANGE
+    shift = (torch.rand(num_clips, 1, 1, 2, device=x.device) * 2 - 1) * MAX_SHIFT
 
     # Rotate around the centre between the shoulders, which preprocessing put at (0, 0).
     px, py = x[..., 0], x[..., 1]
     cos, sin = torch.cos(angle), torch.sin(angle)
-    x = torch.stack([px * cos - py * sin, px * sin + py * cos], dim=-1) * scale.unsqueeze(-1)
+    x = torch.stack([px * cos - py * sin, px * sin + py * cos], dim=-1) * scale.unsqueeze(-1) + shift
 
     dropped = torch.rand(num_clips, NUM_FRAMES, 1, device=x.device) < DROP_FRAME_CHANCE
     mask = mask | dropped
@@ -83,8 +107,13 @@ def evaluate(model, x, mask, y, batch_size=1024):
     return top1 / len(y), top5 / len(y)
 
 
-def train(model, name, epochs, learning_rate, use_augmentation, batch_size=256):
-    """Train on the train split, keep the epoch with the best val top-1, and save it to data/checkpoints/."""
+def train(model, name, epochs, learning_rate, use_augmentation, label_smoothing=0.0, batch_size=256):
+    """Train on the train split, keep the epoch with the best val top-1, and save it to data/checkpoints/.
+
+    label_smoothing: the share of the target spread over the wrong signs instead of
+    all of it going to the right one (0.1 = "90% this sign"). It stops the model from
+    becoming overconfident on the training clips.
+    """
     torch.manual_seed(0)
     device = get_device()
     model = model.to(device)
@@ -109,7 +138,7 @@ def train(model, name, epochs, learning_rate, use_augmentation, batch_size=256):
         for x, mask, y in batches(*train_data, batch_size, shuffle=True):
             if use_augmentation:
                 x, mask = augment(x, mask)
-            loss = F.cross_entropy(model(x, mask), y)
+            loss = F.cross_entropy(model(x, mask), y, label_smoothing=label_smoothing)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -126,7 +155,8 @@ def train(model, name, epochs, learning_rate, use_augmentation, batch_size=256):
             f"epoch {epoch:2d}  loss {train_loss:.3f}  val top-1 {val_top1:.1%}  top-5 {val_top5:.1%}"
             f"  ({time.time() - started:.0f}s){'  saved' if is_best else ''}"
         )
+        # Written every epoch, so a long run that is stopped early keeps its history.
+        pd.DataFrame(history).to_csv(CHECKPOINT_DIR / f"{name}_history.csv", index=False)
 
-    pd.DataFrame(history).to_csv(CHECKPOINT_DIR / f"{name}_history.csv", index=False)
     best = max(history, key=lambda row: row["val_top1"])
     print(f"Best: epoch {best['epoch']}, val top-1 {best['val_top1']:.1%}, top-5 {best['val_top5']:.1%} -> {checkpoint}")

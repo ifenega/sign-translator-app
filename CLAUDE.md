@@ -23,16 +23,17 @@ Goal for all code: clean, readable, easy to understand. Prefer the plain, obviou
 - Google's Isolated Sign Language Recognition data (Kaggle competition `asl-signs`): about 94k clips of 250 signs from 21 participants, already converted to MediaPipe landmarks. Download with `.venv/bin/kaggle competitions download -c asl-signs -p data/asl-signs`; the login is in `~/.kaggle/access_token`.
 - **Never unzip `data/asl-signs/asl-signs.zip`.** It is 37 GB and the unzipped files don't fit on disk alongside it. Scripts read clips straight from the zip.
 - The data pipeline is two scripts, run in order from `ml/`:
-  1. `scripts/extract_landmarks.py` reads the zip, keeps 94 of the 543 landmarks per frame (lips, both hands, upper body) and writes `data/processed/landmarks.npy` and `clips.csv`.
-  2. `scripts/preprocess.py` normalises, mirrors left-handed clips, fixes every clip to 64 frames and splits by participant. It writes `data/prepared/{train,val,test}_{x,mask,y}.npy`. Training reads these.
+  1. `scripts/extract_landmarks.py` reads the zip, keeps 105 of the 543 landmarks per frame (lips, both hands, upper body, and the body model's face points) and writes `data/processed/landmarks.npy` and `clips.csv`.
+  2. `scripts/preprocess.py` keeps 85 of those points, normalises, mirrors left-handed clips, fixes every clip to 64 frames and splits by participant (the val and test people are listed in the script). It writes `data/prepared/{train,val,test}_{x,mask,y}.npy`. Training reads these.
 - Split **by participant**, never at random, so val and test scores show how the model does on signers it has never seen.
 
 ### Training
 
 - `scripts/training.py` holds what every model shares: data loading, augmentation, top-1/top-5 accuracy and the training loop. Each model gets its own `scripts/train_<model>.py` that defines the model and calls `train()`.
-- Every model takes the same input, `(x, mask)`: points of shape `(clips, 64, 74, 2)` and a mask that is True where a point is missing.
+- Every model takes the same input, `(x, mask)`: points of shape `(clips, 64, 85, 2)` and a mask that is True where a point is missing.
 - Compare models on **val**. Leave **test** untouched until the final model is chosen.
 - Checkpoints and per-epoch history go to `data/checkpoints/<name>.pt` and `<name>_history.csv`.
+- `scripts/evaluate.py <name> [<name> ...]` breaks a Transformer checkpoint's val score down: all clips, without the cut-off clips of 6 frames or fewer (about 12% of the data), and per person. Given several checkpoints, it averages their probabilities and scores the combination.
 
 ### Dependencies
 

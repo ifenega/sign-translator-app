@@ -7,8 +7,14 @@ Besides where each point is, the model also gets how far it moved since the prev
 frame (its motion), so it doesn't have to work out the movement itself.
 
 Usage, from ml/:
-    .venv/bin/python scripts/train_transformer.py --name transformer_motion --epochs 40
-    .venv/bin/python scripts/train_transformer.py --name transformer_long --epochs 200 --label-smoothing 0.1
+    .venv/bin/python scripts/train_transformer.py --name transformer_face --epochs 40 --label-smoothing 0.1
+    .venv/bin/python scripts/train_transformer.py --name transformer_big --epochs 40 --label-smoothing 0.1 --dim 256 --layers 5
+
+The final models, once the settings are chosen on val (one per seed, then combined):
+    .venv/bin/python scripts/train_transformer.py --name final_seed0 --epochs 100 --label-smoothing 0.1 --seed 0 --final
+
+--dim and --layers set the model's size. A checkpoint only loads into a model of the
+same size, so pass the same values to evaluate.py.
 """
 
 import argparse
@@ -65,7 +71,7 @@ class ConvTransformer(nn.Module):
         self.classify = nn.Sequential(nn.LayerNorm(dim), nn.Dropout(dropout), nn.Linear(dim, NUM_SIGNS))
 
     def forward(self, x, mask):
-        frames = torch.cat([x.flatten(2), mask.float(), motion(x, mask).flatten(2)], dim=2)  # (clips, frames, 74 * 5)
+        frames = torch.cat([x.flatten(2), mask.float(), motion(x, mask).flatten(2)], dim=2)  # (clips, frames, 85 * 5)
 
         # Frames where every point is missing are padding or dropped frames.
         empty_frame = mask.all(dim=2)  # (clips, frames)
@@ -87,8 +93,13 @@ if __name__ == "__main__":
     parser.add_argument("--name", default="transformer", help="checkpoint name in data/checkpoints/")
     parser.add_argument("--epochs", type=int, default=40)
     parser.add_argument("--label-smoothing", type=float, default=0.0, help="e.g. 0.1; see train() in training.py")
+    parser.add_argument("--dim", type=int, default=192, help="size of each frame's feature vector")
+    parser.add_argument("--layers", type=int, default=3, help="number of Transformer layers")
+    parser.add_argument("--seed", type=int, default=0, help="change it to train another copy that makes different mistakes")
+    parser.add_argument("--final", action="store_true", help="train on train + val and keep the last epoch; see train()")
     args = parser.parse_args()
+    torch.manual_seed(args.seed)  # the model's starting weights are random too
     train(
-        ConvTransformer(), name=args.name, epochs=args.epochs, learning_rate=1e-3,
-        use_augmentation=True, label_smoothing=args.label_smoothing,
+        ConvTransformer(dim=args.dim, layers=args.layers), name=args.name, epochs=args.epochs, learning_rate=1e-3,
+        use_augmentation=True, label_smoothing=args.label_smoothing, seed=args.seed, final=args.final,
     )

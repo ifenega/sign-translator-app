@@ -27,7 +27,7 @@ class GRUClassifier(nn.Module):
         self.classify = nn.Sequential(nn.Dropout(dropout), nn.Linear(2 * hidden, NUM_SIGNS))
 
     def forward(self, x, mask):
-        frames = torch.cat([x.flatten(2), mask.float()], dim=2)  # (clips, frames, 74 * 3)
+        frames = torch.cat([x.flatten(2), mask.float()], dim=2)  # (clips, frames, 85 * 3)
         outputs, _ = self.gru(self.embed(frames))
 
         # Average the GRU's output over the frames that aren't padding.

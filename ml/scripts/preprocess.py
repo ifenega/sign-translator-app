@@ -3,8 +3,8 @@
 Reads data/processed/landmarks.npy and clips.csv (made by extract_landmarks.py) and,
 for each clip:
 
-1. keeps 74 landmarks: the 20 outer-lip points, both hands and the upper body, with
-   x and y only (MediaPipe's z is a rough depth guess and mostly noise),
+1. keeps 85 landmarks: the 20 outer-lip points, both hands, the upper body and 11 face
+   points from the body model, with x and y only (MediaPipe's z is a rough depth guess and mostly noise),
 2. trims frames with no hand from the start and end of the clip,
 3. centres each frame between the shoulders and divides by shoulder width, so it
    doesn't matter where the signer stands or how close they are to the camera,
@@ -17,8 +17,8 @@ Clips are split by participant, so val and test only contain people the model ne
 saw in training. Val and test each hold 2 right-handed and 1 left-handed signer, like
 the data as a whole. Saved to data/prepared/, for each split (train, val, test):
 
-    {split}_x.npy      (clips, 64, 74, 2)  float32 x, y of each landmark
-    {split}_mask.npy   (clips, 64, 74)     True where a landmark was missing or padded
+    {split}_x.npy      (clips, 64, 85, 2)  float32 x, y of each landmark
+    {split}_mask.npy   (clips, 64, 85)     True where a landmark was missing or padded
     {split}_y.npy      (clips,)            sign label, 0-249
     {split}_clips.csv                      the clip behind each row
 
@@ -27,6 +27,7 @@ Landmark order in the output:
     20-40  other hand
     41-52  upper body (pose 11-22: shoulders, elbows, wrists, hands)
     53-73  dominant hand
+    74-84  face (pose 0-10: nose, eyes, ears, mouth corners)
 
 Usage, from ml/:
     .venv/bin/python scripts/preprocess.py
@@ -53,14 +54,19 @@ VAL_PARTICIPANTS = [2044, 37779, 32319]  # right, right, left-handed
 
 # Positions in landmarks.npy (see extract_landmarks.py). The first 20 lip points
 # are the outer lip outline; the other 20 (inner lips) are dropped.
-KEEP = list(range(0, 20)) + list(range(40, 94))
+KEEP = list(range(0, 20)) + list(range(40, 105))
 
 # Positions after KEEP.
 OUTER_LIPS = LIPS[:20]
 LEFT_HAND = slice(20, 41)
 UPPER_BODY_START = 41  # pose point 11
 RIGHT_HAND = slice(53, 74)
+FACE_START = 74  # pose point 0
 LEFT_SHOULDER, RIGHT_SHOULDER = 41, 42  # pose points 11 and 12
+
+# Pose face points 0-10: nose (0), left eye (1-3), right eye (4-6), left and right ear
+# (7, 8), left and right mouth corner (9, 10). Each one's mirror image:
+FACE_MIRROR = [0, 4, 5, 6, 1, 2, 3, 8, 7, 10, 9]
 
 # Face-mesh lip points and their mirror image on the other side of the mouth.
 LIP_MIRROR = {61: 291, 185: 409, 40: 270, 39: 269, 37: 267, 0: 0,
@@ -69,20 +75,21 @@ LIP_MIRROR.update({b: a for a, b in LIP_MIRROR.items()})
 
 
 def mirror_order():
-    """For each of the 74 landmarks, the position of its mirror image (left <-> right)."""
+    """For each of the 85 landmarks, the position of its mirror image (left <-> right)."""
     lips = [OUTER_LIPS.index(LIP_MIRROR[point]) for point in OUTER_LIPS]
     left_hand = list(range(53, 74))  # left hand swaps with right hand
     # Pose points come in left/right pairs: 11-12, 13-14, ... 21-22.
     upper_body = [UPPER_BODY_START + (i + 1 if i % 2 == 0 else i - 1) for i in range(12)]
     right_hand = list(range(20, 41))
-    return lips + left_hand + upper_body + right_hand
+    face = [FACE_START + i for i in FACE_MIRROR]
+    return lips + left_hand + upper_body + right_hand + face
 
 
 MIRROR = mirror_order()
 
 
 def prepare_clip(frames):
-    """Turn one clip of shape (frames, 94, 3) into points (64, 74, 2) and a mask (64, 74)."""
+    """Turn one clip of shape (frames, 105, 3) into points (64, 85, 2) and a mask (64, 85)."""
     xy = frames[:, KEEP, :2].astype(np.float32)
 
     # Trim frames with no hand from the start and end. Gaps in the middle stay: the

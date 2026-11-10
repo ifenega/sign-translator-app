@@ -1,16 +1,17 @@
 """Extract the landmarks we train on from the Kaggle asl-signs zip.
 
 The zip is never unzipped (it would not fit on disk): each clip is read straight
-out of it. From the 543 landmarks in every frame we keep 94:
+out of it. From the 543 landmarks in every frame we keep 105:
 
-    0-39   lips
-    40-60  left hand
-    61-72  upper body (shoulders, elbows, wrists, hands)
-    73-93  right hand
+    0-39    lips
+    40-60   left hand
+    61-72   upper body (shoulders, elbows, wrists, hands)
+    73-93   right hand
+    94-104  face, from the body model: nose, eyes, ears, mouth corners
 
 and save everything to two files in data/processed/:
 
-    landmarks.npy  every frame of every clip, shape (total_frames, 94, 3) for x, y, z.
+    landmarks.npy  every frame of every clip, shape (total_frames, 105, 3) for x, y, z.
                    A hand that wasn't detected in a frame is NaN.
     clips.csv      one row per clip: its sign, label, participant, and which rows
                    of landmarks.npy belong to it (start, length).
@@ -49,12 +50,16 @@ LIPS = [
 ]
 HAND = range(21)
 UPPER_BODY = range(11, 23)
+# The body model's face points. Unlike the lips, the body model is estimated in every
+# frame, so these still show where the face is when a hand covers it.
+FACE_FROM_POSE = range(0, 11)
 
 KEEP = (
     [FACE_START + i for i in LIPS]
     + [LEFT_HAND_START + i for i in HAND]
     + [POSE_START + i for i in UPPER_BODY]
     + [RIGHT_HAND_START + i for i in HAND]
+    + [POSE_START + i for i in FACE_FROM_POSE]
 )
 
 

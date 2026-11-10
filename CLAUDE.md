@@ -43,6 +43,8 @@ Goal for all code: clean, readable, easy to understand. Prefer the plain, obviou
 
 ## app/ — feature-based structure
 
+Expo SDK 58 with Expo Router and TypeScript. Run commands from `app/`: `npx expo start` to run it, `npx expo lint` and `npx tsc --noEmit` before calling anything done, and `npx expo install <package>` (never plain `npm install`) so versions match the SDK. `app/AGENTS.md` has Expo's own notes.
+
 The app is organised by **feature** (also called feature-first or "vertical slice" structure): everything for one feature lives together in one folder, rather than all hooks in one place and all API calls in another.
 
 ```

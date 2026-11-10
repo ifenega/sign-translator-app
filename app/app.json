@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Sign Translator",
+    "slug": "sign-translator",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Sign Translator opens your videos so you can choose one to translate.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-splash-screen",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Sign Translator uses the camera to record you signing.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": false
+        }
+      ],
+      "expo-video"
+    ],
+    "scheme": "signtranslator",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
